@@ -60,7 +60,7 @@ Parameters:
       letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
       (-).
     Description: S3 bucket name for the bucket to which you'll read and write genomics data.
-    Default: cgl-dragen-results
+    Default: cgl-results
     Type: String
   DragenDockerImage:
     Type: String

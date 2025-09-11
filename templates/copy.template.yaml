@@ -16,7 +16,7 @@ Parameters:
     Description: "Bucket where Lambda artifacts will be copied to"
     Default: ""
 Conditions:
-  UsingDefaultBucket: !Equals [!Ref QSS3BucketName, "cgl-dragen-quickstart"]
+  UsingDefaultBucket: !Equals [!Ref QSS3BucketName, "cgl-dragen-aws"]
 Resources:
   CopyRole:
     Type: AWS::IAM::Role
