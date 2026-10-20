@@ -195,6 +195,8 @@ Resources:
             Resource:
               - !Sub "arn:${AWS::Partition}:s3:::${GenomicsS3Bucket}"
               - !Sub "arn:${AWS::Partition}:s3:::${GenomicsS3Bucket}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::cgl-staging"
+              - !Sub "arn:${AWS::Partition}:s3:::cgl-staging/*"
       Roles:
         - !Ref DragenInstanceRole
   S3ReadWritePolicyJob:
@@ -218,6 +220,8 @@ Resources:
             Resource:
               - !Sub "arn:${AWS::Partition}:s3:::${GenomicsS3Bucket}"
               - !Sub "arn:${AWS::Partition}:s3:::${GenomicsS3Bucket}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::cgl-staging"
+              - !Sub "arn:${AWS::Partition}:s3:::cgl-staging/*"
       Roles:
         - !Ref DragenJobRole
   DragenLaunchTemplate:
@@ -323,6 +327,7 @@ Resources:
             RAID_DEVICES=(/dev/nvme1n1 /dev/nvme2n1 /dev/nvme3n1 /dev/nvme4n1)
             RAID_NAME="/dev/md0"
             MOUNT_POINT="/staging"
+            S3_BUCKET_NAME="cgl-staging"
 
             LOG_FILE="configure-raid.log"
             exec > >(tee -a "${LOG_FILE}") 2> >(tee -a "${LOG_FILE}" >&2)
@@ -354,6 +359,17 @@ Resources:
             qs_retry 10 "sudo mkdir -p ${MOUNT_POINT}/tmp ${MOUNT_POINT}/intermediate-results-dir"
             qs_retry 10 "sudo chmod -R 777 ${MOUNT_POINT}"
 
+            log "Installing Mountpoint for Amazon S3..."
+            qs_retry 10 "wget https://s3.amazonaws.com/mountpoint-s3-release/latest/x86_64/mount-s3.rpm"
+            qs_retry 10 "sudo yum install -y ./mount-s3.rpm"
+            qs_retry 10 "rm -f ./mount-s3.rpm"
+            qs_retry 10 "sudo mkdir -p ${MOUNT_POINT}/illumina_run_directories"
+            qs_retry 10 "sudo chmod 777 ${MOUNT_POINT}/illumina_run_directories"
+            qs_retry 10 "sudo umount ${MOUNT_POINT}/illumina_run_directories || true"
+            qs_retry 10 "sudo mount-s3 --allow-other ${S3_BUCKET_NAME} ${MOUNT_POINT}/illumina_run_directories || { log 'S3 mount failed!'; exit 1; }"
+            qs_retry 10 "ls ${MOUNT_POINT}/illumina_run_directories || { log 'S3 mount not accessible!'; exit 1; }"
+            qs_retry 10 "sudo yum update -y"
+
             log "Setting up Docker..."
             qs_retry 10 "sudo groupadd -f docker"
             qs_retry 10 "sudo usermod -aG docker $(id -un)"
@@ -377,7 +393,7 @@ Resources:
             log "ECS and RAID0 array are ready."
 
             --==BOUNDARY==--
-      
+
   DragenComputeEnvironmentSpot:
     Type: AWS::Batch::ComputeEnvironment
     Properties:
@@ -389,7 +405,7 @@ Resources:
         BidPercentage: !Ref BidPercentage
         Ec2KeyPair: !Ref Ec2KeyPair
         ImageId: !Ref ImageId
-        InstanceRole: !Ref DragenInstanceRole
+        InstanceRole: !GetAtt DragenInstanceProfile.Arn
         InstanceTypes: [!Ref InstanceType]
         MinvCpus: !Ref MinvCpus
         DesiredvCpus: !Ref DesiredvCpus
@@ -427,7 +443,7 @@ Resources:
       ComputeResources:
         Ec2KeyPair: !Ref Ec2KeyPair
         ImageId: !Ref ImageId
-        InstanceRole: !Ref DragenInstanceRole
+        InstanceRole: !GetAtt DragenInstanceProfile.Arn
         InstanceTypes: [!Ref InstanceType]
         MinvCpus: !Ref MinvCpus
         DesiredvCpus: !Ref DesiredvCpus
